@@ -13,8 +13,8 @@ from torch_geometric.utils import to_networkx
 
 
 class BaseRepresentation:
-    def __init__(self, pdb, featurizer: Featurizer, label = None):
-        self.pdb = pdb
+    def __init__(self, structure, featurizer: Featurizer, label = None):
+        self.structure = structure
         self.label = label
         self.featurizer = featurizer
 
@@ -39,12 +39,12 @@ Distance graph
 '''
 class GraphRepresentation(BaseRepresentation):
 
-    def __init__(self, pdb, featurizer: Featurizer, edges_method = "distance", cutoff_distance = 10.0, label=None):
+    def __init__(self, structure, featurizer: Featurizer, edges_method = "distance", cutoff_distance = 10.0, label=None):
         self.cutoff = cutoff_distance
         self.edges_method = edges_method
         self.process_bonds = self.__check_process_bonds()
-        super().__init__(pdb, featurizer = featurizer, label = label)
-        self.features, self.coords, self.bonds, self.bonds_features = self.featurizer.process_structure(pdb, self.process_bonds)
+        super().__init__(structure, featurizer = featurizer, label = label)
+        self.features, self.coords, self.bonds, self.bonds_features = self.featurizer.process_structure(self.structure, self.process_bonds)
 
         #Graph
         self.representation = self.__compute_representation()
@@ -84,6 +84,10 @@ class GraphRepresentation(BaseRepresentation):
     #Not implemmented
     def __get_mixed_edges(self):
         contacts, distances = self.__get_distance_edges()
+        # print(contacts)
+        # print(distances)
+        # print(self.bonds)
+        # print(self.bonds_features)
         return contacts, distances
     
     
@@ -100,8 +104,8 @@ class GraphRepresentation(BaseRepresentation):
         node_features = torch.tensor(node_features, dtype=torch.float)
 
         edges, edge_features = self.__get_edges()
-        edges = torch.tensor(self.edges).t()
-        edge_features = torch.tensor(self.edge_features, dtype=torch.float)
+        edges = torch.tensor(edges).t()
+        edge_features = torch.tensor(edge_features, dtype=torch.float)
 
         graph = Data(x=node_features, edge_index=edges, edge_attr=edge_features, y = self.label)
 
@@ -136,9 +140,9 @@ class GraphRepresentation(BaseRepresentation):
 Grid
 '''
 class Grid3DRepresentation(BaseRepresentation):
-    def __init__(self, pdb, featurizer: Featurizer, voxel_size = 10.0, label=None):
-        super().__init__(pdb, featurizer = featurizer, label = label)
-        self.features, self.coords, self.bonds, self.bonds_features = self.featurizer.process_structure(pdb, False)
+    def __init__(self, structure, featurizer: Featurizer, voxel_size = 10.0, label=None):
+        super().__init__(structure, featurizer = featurizer, label = label)
+        self.features, self.coords, self.bonds, self.bonds_features = self.featurizer.process_structure(self.structure, False)
         self.voxel_size = voxel_size
 
         #Grid
@@ -192,9 +196,9 @@ class Grid3DRepresentation(BaseRepresentation):
 Point cloud
 '''
 class PointCloudRepresentation(BaseRepresentation):
-    def __init__(self, pdb, featurizer: Featurizer, label=None):
-        super().__init__(pdb, featurizer = featurizer, label = label)
-        self.features, self.coords, self.bonds, self.bonds_features = self.featurizer.process_structure(pdb, False)
+    def __init__(self, structure, featurizer: Featurizer, label=None):
+        super().__init__(structure, featurizer = featurizer, label = label)
+        self.features, self.coords, self.bonds, self.bonds_features = self.featurizer.process_structure(self.structure, False)
 
         #Grid
         self.representation = self.__compute_representation()

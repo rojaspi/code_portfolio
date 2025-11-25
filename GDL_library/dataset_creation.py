@@ -21,15 +21,20 @@ class RepresentationBases():
         else:
             distance = self.distance
 
+        if self.edge_features == None:
+            edge_features = "distance"
+        else:
+            edge_features = self.edge_features
+
         match self.representation.lower():
             case "graph":
-                repr = data_representation.GraphRepresentation(pdb = path, featurizer= self.featurizer,
-                                                               label=label, cutoff_distance=distance)
+                repr = data_representation.GraphRepresentation(structure = path, featurizer= self.featurizer,
+                                                               label=label, cutoff_distance=distance, edges_method=edge_features)
             case "point_cloud" | "point cloud":
-                repr = data_representation.PointCloudRepresentation(pdb = path, featurizer= self.featurizer,
+                repr = data_representation.PointCloudRepresentation(structure = path, featurizer= self.featurizer,
                                                                     label=label)
             case "voxel" | "grid":
-                repr = data_representation.Grid3DRepresentation(pdb = path, featurizer= self.featurizer,
+                repr = data_representation.Grid3DRepresentation(structure = path, featurizer= self.featurizer,
                                                                 label=label, voxel_size= distance)
             case _:
                 sys.exit("Invalid representation")
@@ -80,6 +85,7 @@ class RepresentationDataset(Dataset, RepresentationBases):
     
     """
     def __init__(self, raw_data_dir, root, dataset_name, representation:str,
+                 edge_features:str = None,
                  featurizer = featurizer.ResidueFeaturizer(),
                  distance:float = None, label_dict: dict = None):
         """
@@ -98,6 +104,7 @@ class RepresentationDataset(Dataset, RepresentationBases):
         self.raw_data_dir = raw_data_dir
         self.dataset_name = dataset_name
         self.representation = representation
+        self.edge_features = edge_features
         self.featurizer = featurizer
         self.distance = distance
         self.labels = label_dict
@@ -107,6 +114,11 @@ class RepresentationDataset(Dataset, RepresentationBases):
         if self.representation.lower() in ["point_cloud", "point cloud"] and self.distance is not None:
             warnings.warn(
                 "Distance parameter has no influence over point cloud representations",
+                UserWarning
+            )
+        if self.representation.lower() in ["point_cloud", "point cloud", "voxel", "grid"] and self.edge_features is not None:
+            warnings.warn(
+                "Edge features parameter has no influence over voxel/grid and point cloud representations",
                 UserWarning
             )
 
@@ -205,6 +217,7 @@ class RepresentationInMemoryDataset(InMemoryDataset, RepresentationBases):
     
     """
     def __init__(self, raw_data_dir, root, dataset_name, representation:str,
+                 edge_features:str = None,
                  featurizer = featurizer.ResidueFeaturizer(),
                  distance:float = None, label_dict: dict = None):
         """
@@ -222,6 +235,7 @@ class RepresentationInMemoryDataset(InMemoryDataset, RepresentationBases):
         self.raw_data_dir = raw_data_dir
         self.dataset_name = dataset_name
         self.representation = representation
+        self.edge_features = edge_features
         self.featurizer = featurizer
         self.distance = distance
         self.labels = label_dict
@@ -233,6 +247,11 @@ class RepresentationInMemoryDataset(InMemoryDataset, RepresentationBases):
         if self.representation.lower() in ["point_cloud", "point cloud"] and self.distance is not None:
             warnings.warn(
                 "Distance parameter has no influence over point cloud representations",
+                UserWarning
+            )
+        if self.representation.lower() in ["point_cloud", "point cloud", "voxel", "grid"] and self.edge_features is not None:
+            warnings.warn(
+                "Edge features parameter has no influence over voxel/grid and point cloud representations",
                 UserWarning
             )
 

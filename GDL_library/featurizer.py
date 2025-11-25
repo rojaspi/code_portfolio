@@ -38,7 +38,6 @@ class Featurizer():
 
 class ResidueFeaturizer(Featurizer):
     def __init__(self, residue_center = "CA", feature_list = ["Blossum"]):
-        super.__init__(self)
         self.residue_center = residue_center.lower()
         self.feature_list = [item.lower() for item in feature_list]
 
@@ -64,7 +63,7 @@ class ResidueFeaturizer(Featurizer):
     #Not implementes
     def __get_bonds(self, process_bonds):
         if process_bonds == False:
-            print("Bond processing off")
+            #print("Bond processing off")
             return None, None
 
         # Need to implement bond processing
@@ -326,17 +325,17 @@ class ResidueFeaturizer(Featurizer):
 
 #Incomplete
 class AllAtomFeaturizer(Featurizer):
-    def __init__(self, feature_list):
+    def __init__(self, feature_list = [""]):
         #Main information
         self.residue_center = "all-atom"
         self.feature_list = [item.lower() for item in feature_list]
 
 
-    def process_features(self, structure_file, process_bonds = False):
+    def process_structure(self, structure_file, process_bonds = False):
         mol = Chem.MolFromPDBFile(structure_file, sanitize=False)
         conformer = mol.GetConformer()
 
-        atoms, coords, residue_map, masses  = self.__get_coords_and_atoms(conformer)
+        atoms, coords, residue_map, masses  = self.__get_coords_and_atoms(mol, conformer)
 
         context = {
             "coords": coords,
@@ -352,8 +351,8 @@ class AllAtomFeaturizer(Featurizer):
 
     def __get_bonds(self, mol, process_bonds = False):
         if process_bonds == False:
-            print("Bond processing off")
-            return None, None
+            #print("Bond processing off")
+            return [None], None
 
         edges = []
         edge_features = []
@@ -361,12 +360,12 @@ class AllAtomFeaturizer(Featurizer):
         for bond in mol.GetBonds():
             begin_idx = bond.GetBeginAtomIdx()
             end_idx = bond.GetEndAtomIdx()
-            bonds_feature = [bond.GetBondType().numerator, bond.GetIsAromatic()]
+            bonds_feature = [bond.GetBondType().numerator, int(bond.GetIsAromatic())]
 
             edges.append([begin_idx, end_idx])
             edge_features.append(bonds_feature)
 
-        return np.array(edges), np.array(edge_features)
+        return edges, edge_features
 
 
     def __get_coords_and_atoms(self, mol, conformer):
@@ -396,16 +395,16 @@ class AllAtomFeaturizer(Featurizer):
         return feature_matrix
 
 
-    def __get_residue_index(self):
-        residues = torch.tensor(self.residue_map, dtype=int)
-        unique_residues, inverse_indices = torch.unique(residues, sorted=True, return_inverse=True)
-        return inverse_indices
+    # def __get_residue_index(self):
+    #     residues = torch.tensor(self.residue_map, dtype=int)
+    #     unique_residues, inverse_indices = torch.unique(residues, sorted=True, return_inverse=True)
+    #     return inverse_indices
 
 
-    def __generate_graph(self):
-        edges = torch.tensor(self.bonds).t()
-        node_features = np.concatenate((self.coords, self.masses), axis = 1)
-        node_features = torch.tensor(node_features, dtype=torch.float)
-        edge_features = torch.tensor(self.bonds_features, dtype=torch.float)
-        d = Data(x=node_features, edge_index=edges, edge_attr=edge_features)
-        return d
+    # def __generate_graph(self):
+    #     edges = torch.tensor(self.bonds).t()
+    #     node_features = np.concatenate((self.coords, self.masses), axis = 1)
+    #     node_features = torch.tensor(node_features, dtype=torch.float)
+    #     edge_features = torch.tensor(self.bonds_features, dtype=torch.float)
+    #     d = Data(x=node_features, edge_index=edges, edge_attr=edge_features)
+    #     return d
