@@ -18,13 +18,6 @@ from torch_geometric.utils import to_networkx
 from torch_geometric.nn import aggr
 
 
-VALID_ATOM_NAMES = {
-    "N", "CA", "C", "O", "CB", "CG", "CD", "CE", "NZ", "OG", "SG", "ND1", "NE2", "CD1", "CD2",
-    "CG1", "CG2", "OE1", "OE2", "OD1", "OD2", "NE", "NH1", "NH2", "OG1", "SD", "H", "HA", "HB", "HG",
-    "HD", "HE", "HH", "HZ", "HG1", "HG2", "HG3", "HD1", "HD2", "HD3", "HE1", "HE2", "HE3", "HH11", "HH12",
-    "HH21", "HH22", "HZ1", "HZ2", "HZ3"
-}
-
 class Featurizer():
         
     @abstractmethod
@@ -173,100 +166,6 @@ class ResidueFeaturizer(Featurizer):
             centroids.append(centroid)
         return np.array(centroids)
 
-        
-    # FEATURES!!
-    # This function is from:
-    # https://github.com/feiglab/ProteinStructureEmbedding/blob/main/src/dataset.py and edited by copilot
-    def __get_dh(self):
-        """
-        Gets dihedral features (sine, cosine, mask) for all residues.
-        Ensures consistent size across all features.
-        """
-        
-        residues = [r for r in self.traj.topology.residues if r.is_protein]
-        num_residues = len(residues)
-
-        # Map atoms to residue indices
-        a2r = {}
-        for i, r in enumerate(residues):
-            for a in r.atoms:
-                a2r[a.index] = i
-
-        def process_dihedral(dihedral_func, default_value=-2*np.pi):
-            data = dihedral_func(self.traj)
-            values = data[1][0]
-            atoms = data[0]
-
-            angles = np.full(num_residues, default_value)
-            mask = np.zeros(num_residues)
-
-            for i, angle in enumerate(values):
-                atom_index = atoms[i][0]
-                if atom_index in a2r:
-                    res_index = a2r[atom_index]
-                    if res_index < num_residues:
-                        angles[res_index] = angle
-                        mask[res_index] = 1
-
-            sin_vals = np.sin(angles) * mask
-            cos_vals = np.cos(angles) * mask
-            return mask, sin_vals, cos_vals
-
-        # Phi and Psi
-        phi_mask, phi_sin, phi_cos = process_dihedral(md.compute_phi)
-        psi_mask, psi_sin, psi_cos = process_dihedral(md.compute_psi)
-
-        # Chi1, Chi2, Chi3
-        chi1_mask, chi1_sin, chi1_cos = process_dihedral(md.compute_chi1, default_value=10.0)
-        chi2_mask, chi2_sin, chi2_cos = process_dihedral(md.compute_chi2, default_value=10.0)
-        chi3_mask, chi3_sin, chi3_cos = process_dihedral(md.compute_chi3, default_value=10.0)
-
-        # Stack all features
-        features = np.array([
-            psi_mask, psi_sin, psi_cos,
-            phi_mask, phi_sin, phi_cos,
-            chi1_mask, chi1_sin, chi1_cos,
-            chi2_mask, chi2_sin, chi2_cos,
-            chi3_mask, chi3_sin, chi3_cos
-        ]).transpose()
-
-        return features
-
-
-    def __get_secondary_structure(self):
-        try:
-            ss_raw = md.compute_dssp(self.traj, simplified=False)[0]
-        except Exception as e:
-            print("DSSP falló, aplicando filtrado de átomos no válidos")
-            valid_indices = [atom.index for atom in self.traj.topology.atoms if atom.name in VALID_ATOM_NAMES]
-            traj_filtered = self.traj.atom_slice(valid_indices)
-            ss_raw = md.compute_dssp(traj_filtered, simplified=False)[0]
-
-
-        ss_2_int = {"H":0, "B":1, "E":2, "G":3, "I":4, "T":5, "S":6, " ":7}
-
-        ss_clean = np.array([s if s != "NA" else " " for s in ss_raw])
-
-        ss_int = np.vectorize(ss_2_int.get)(ss_clean)
-        num_classes = len(ss_2_int)
-        one_hot_encoded = np.zeros((ss_int.size, num_classes), dtype=int)
-        one_hot_encoded[np.arange(ss_int.size), ss_int] = 1
-
-        return one_hot_encoded
-    
-
-    def __get_accessible_surface_area(self):
-        try:
-            sa = md.shrake_rupley(self.traj, mode="residue")[0]
-        except Exception as e:
-            print("DSSP falló, aplicando filtrado de átomos no válidos")
-            valid_indices = [atom.index for atom in self.traj.topology.atoms if atom.name in VALID_ATOM_NAMES]
-            traj_filtered = self.traj.atom_slice(valid_indices)
-            sa = md.shrake_rupley(traj_filtered, mode="residue")[0]
-
-        sa = sa[:len(self.sequence)].reshape(-1, 1)
-
-        return sa
 
 
     NORMALIZED = {
@@ -310,16 +209,16 @@ class ResidueFeaturizer(Featurizer):
             "params": ["sequence"]
         },
         "dihedral": {
-            "func": lambda self, topology, coords: self.__get_dh(topology, coords),
-            "params": ["topology", "coords"]
+            "func": feature_extraction.get_dh,
+            "params": ["trajectory"]
         },
         "secondary_structure": {
-            "func": lambda self, topology: self.__get_secondary_structure(topology),
-            "params": ["topology"]
+            "func": feature_extraction.get_secondary_structure,
+            "params": ["trajectory"]
         },
         "accessible_surface": {
-            "func": lambda self, topology, coords: self.__get_accessible_surface_area(topology, coords),
-            "params": ["topology", "coords"]
+            "func": feature_extraction.get_accessible_surface_area,
+            "params": ["trajectory", "sequence"]
         }
     }
 

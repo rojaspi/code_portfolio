@@ -196,7 +196,7 @@ class RepresentationDataset(Dataset, RepresentationBases):
                     print("File "+ raw_file + " skipped due to missing label. Please retry.")
                     idx += 1
                     continue
-
+            
             try:
                 data = self.process_representation(file_path, label=label)
                 torch.save(data, osp.join(self.processed_dir, f'data_{idx}.pt'))
