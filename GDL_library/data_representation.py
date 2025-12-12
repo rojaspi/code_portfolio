@@ -13,33 +13,67 @@ from torch_geometric.utils import to_networkx
 
 
 class BaseRepresentation:
+    """
+    This class is used to define shared methods and parameters between different representations.
+    """
     def __init__(self, structure, featurizer: Featurizer, label = None):
+        """
+        Initializes BaseRepresentation class
+        
+        :param self:
+        :param structure: Path to structure file
+        :param featurizer: Needs featurizer to define residue or all atom granularity and compute features
+        :type featurizer: Featurizer
+        :param label: value or class of the representation
+        """
         self.structure = structure
         self.label = label
         self.featurizer = featurizer
 
 
     def get_features_matrix(self):
-        return self.features
+        """
+        Gets the features from the featurizer
+        """
+        return self.featurizer.feature_list
     
 
     @abstractmethod
     def __compute_representation(self):
+        """
+        Shared name to compute each representation type
+        """
         pass
 
 
     @abstractmethod
     def visualize_representation(self):
+        """
+        Shared name to visualize each representation
+        """
         pass
 
 
 
-'''
-Distance graph
-'''
 class GraphRepresentation(BaseRepresentation):
-
+    """
+    This class is used to generate graphs from structure files. Edges are created by the featurizer (residue or atomic bonds)
+    or by distance using a cutoff distance. A edge is created if two nodes are close enough, dictated by the cutoof distance.
+    """
     def __init__(self, structure, featurizer: Featurizer, edges_method = "distance", cutoff_distance = 10.0, label=None):
+        """
+        Initializes GraphRepresentation class
+        
+        :param structure: path to structure
+        :param featurizer: The featurizer previusly configured with the features to extract
+        :type featurizer: Featurizer
+        :param edges_method: How the edges will be computed.
+                                - distance: for distance graphs
+                                - featurizer: to use featurizer bond features
+                                - mixed: to use both
+        :param cutoff_distance: Cutoff distance for distance graph
+        :param label:  dictionary using the structure name (eg: xxx.pdb) as key, and label as value
+        """
         self.cutoff = cutoff_distance
         self.edges_method = edges_method
         self.process_bonds = self.__check_process_bonds()
@@ -51,6 +85,9 @@ class GraphRepresentation(BaseRepresentation):
 
 
     def __get_edges(self):
+        """
+        Uses the edges method to select how the edges will be computed
+        """
         match self.edges_method:
             case "distance":
                 edges, edge_features = self.__get_distance_edges()
@@ -69,6 +106,9 @@ class GraphRepresentation(BaseRepresentation):
     
 
     def __get_distance_edges(self):
+        """
+        Computes edges using cutoff distance
+        """
         contacts = []
         distances = []
         for i in range(len(self.coords)-1):
@@ -83,15 +123,17 @@ class GraphRepresentation(BaseRepresentation):
     
     #Not implemmented
     def __get_mixed_edges(self):
+        """
+        Computes edges mixing cutoff distance and featurizer bonds
+        """
         contacts, distances = self.__get_distance_edges()
-        # print(contacts)
-        # print(distances)
-        # print(self.bonds)
-        # print(self.bonds_features)
         return contacts, distances
     
     
     def __check_process_bonds(self):
+        """
+        Tells if it necessary for the featurizer to compute the bonds depending on edges method.
+        """
         if self.edges_method in ["mixed", "featurizer"]:
             return True
         else:
@@ -100,6 +142,12 @@ class GraphRepresentation(BaseRepresentation):
     
     
     def __compute_representation(self):
+        """
+        Computes the full representation, using node, node features, edges and edges features.
+
+        :return: A representation as a data object
+        :rtype: torch_geometric.data.Data
+        """
         node_features = self.get_features_matrix()
         node_features = torch.tensor(node_features, dtype=torch.float)
 
@@ -113,6 +161,14 @@ class GraphRepresentation(BaseRepresentation):
     
 
     def visualize_representation(self, axis = "xy"):
+        """
+        Generates a visualization of the representation.
+        
+        :param axis: Defines the 2D face from wich the representation is visualized:
+                    - XY
+                    - XZ
+                    - YZ
+        """
         match sorted(axis.lower()):
             case ["x", "y"]:
                 pos = [(n[0], n[1]) for n in self.coords]
@@ -134,13 +190,22 @@ class GraphRepresentation(BaseRepresentation):
 
 
 
-
-
-'''
-Grid
-'''
 class Grid3DRepresentation(BaseRepresentation):
+    """
+    This class is used to generate 3D Grids from structure files. Each voxel in the 3d grid represents
+    all contents in a selected distance. As an example in sapce of 10 armstrong, a voxel size of 2 would create 5 voxels.
+    These voxels are populated by aggregating the features of all residues or atoms inside the voxel.
+    """
     def __init__(self, structure, featurizer: Featurizer, voxel_size = 10.0, label=None):
+        """
+        Initializes 3D grid representation.
+        
+        :param structure: path to structure
+        :param featurizer: The featurizer previusly configured with the features to extract
+        :type featurizer: Featurizer
+        :param voxel_size: Size of the voxels created in the 3D grid
+        :param label:  dictionary using the structure name (eg: xxx.pdb) as key, and label as value
+        """
         super().__init__(structure, featurizer = featurizer, label = label)
         self.features, self.coords, self.bonds, self.bonds_features = self.featurizer.process_structure(self.structure, False)
         self.voxel_size = voxel_size
@@ -150,6 +215,12 @@ class Grid3DRepresentation(BaseRepresentation):
 
 
     def __compute_representation(self):
+        """
+        Computes the 3d Grid. Checks wich point lands in each voxel, and then aggregates their features.
+
+        :return: A representation as a data object. X corresponds to the numpy grid, and y the label.
+        :rtype: torch_geometric.data.Data
+        """
         coords_copy = self.coords
         # En esta parte creamos el grid
         min_vals = np.min(coords_copy, axis=0)
@@ -180,6 +251,9 @@ class Grid3DRepresentation(BaseRepresentation):
 
 
     def visualize_representation(self):
+        """
+        Generates a visualization of the representation.
+        """
         mask = np.any(self.representation != 0, axis=3)
 
         fig = plt.figure()
@@ -192,11 +266,21 @@ class Grid3DRepresentation(BaseRepresentation):
 
 
 
-'''
-Point cloud
-'''
+
 class PointCloudRepresentation(BaseRepresentation):
+    """
+    This class is used to generate Point Clouds from structure files. Points are defined as
+    coordinates and a set of features generated by the featurizer.
+    """
     def __init__(self, structure, featurizer: Featurizer, label=None):
+        """
+        Initializes Point Cloud representation.
+        
+        :param structure: path to structure
+        :param featurizer: The featurizer previusly configured with the features to extract
+        :type featurizer: FeaturizerS
+        :param label:  dictionary using the structure name (eg: xxx.pdb) as key, and label as value
+        """
         super().__init__(structure, featurizer = featurizer, label = label)
         self.features, self.coords, self.bonds, self.bonds_features = self.featurizer.process_structure(self.structure, False)
 
@@ -205,6 +289,12 @@ class PointCloudRepresentation(BaseRepresentation):
 
 
     def __compute_representation(self):
+        """
+        Computes the point cloud.
+
+        :return: A representation as a data object.
+        :rtype: torch_geometric.data.Data
+        """
         # Line to concatenate features
         feature_matrix = self.get_features_matrix()
         point_cloud =  Data(pos=feature_matrix[:, 0:3], x=feature_matrix[:, 3:], y = self.label)
@@ -213,6 +303,9 @@ class PointCloudRepresentation(BaseRepresentation):
     
 
     def visualize_representation(self):
+        """
+        Generates a visualization of the representation.
+        """
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
 

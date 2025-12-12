@@ -15,21 +15,27 @@ class RepresentationBases():
     def process_representation(self, path, label = None):
         """
         Processes each file given a representation
+        
+        :param path: path to structure
+        :param label: label for the structure
+
+        :return: A representation as a data object
+        :rtype: torch_geometric.data.Data
         """
         if self.distance == None:
             distance = 8
         else:
             distance = self.distance
 
-        if self.edge_features == None:
-            edge_features = "distance"
+        if self.edges_method == None:
+            edges_method = "distance"
         else:
-            edge_features = self.edge_features
+            edges_method = self.edges_method
 
         match self.representation.lower():
             case "graph":
                 repr = data_representation.GraphRepresentation(structure = path, featurizer= self.featurizer,
-                                                               label=label, cutoff_distance=distance, edges_method=edge_features)
+                                                               label=label, cutoff_distance=distance, edges_method=edges_method)
             case "point_cloud" | "point cloud":
                 repr = data_representation.PointCloudRepresentation(structure = path, featurizer= self.featurizer,
                                                                     label=label)
@@ -41,10 +47,10 @@ class RepresentationBases():
 
         return repr.representation
     
-
+    # I need to correct data_root to work using its own location
     def save_metadata(self, data_size = "unkown"):
         """
-        Saves dataset metadata
+        Writes the dataset metadata on the dataset root
         """
         metadata = {
             "dataset_name": self.dataset_name,
@@ -82,29 +88,40 @@ class RepresentationBases():
 
 class RepresentationDataset(Dataset, RepresentationBases):
     """
-    
+    Class to create representations datasets. If data is previusly processed, this class opens each entry
+    in the dataset when called. If data is not previusly processed, the class processes each representation
+    first, and saves it as separate files.
     """
     def __init__(self, raw_data_dir, root, dataset_name, representation:str,
-                 edge_features:str = None,
+                 edges_method:str = None,
                  featurizer = featurizer.ResidueFeaturizer(),
                  distance:float = None, label_dict: dict = None):
         """
         Initialize the RepresentationDataset object
-
-        Args:
-            raw_data_dir
-            root
-            dataset_name
-            representation
-            residue_center
-            feature_list
-            distance
-            label_dict
+        
+        :param raw_data_dir: Folder where all the structures are stored.
+        :param root: Folder where the processed is or will be stored.
+        :param dataset_name: 
+        :param representation: Type of representation for the structures:
+                                - graph
+                                - voxel/grid
+                                - point cloud
+        :type representation: str
+        :param edges_method: How the edges will be computed.
+                                - distance: for distance graphs
+                                - featurizer: to use featurizer bond features
+                                - mixed: to use both
+        :type edges_method: str
+        :param featurizer: The featurizer previusly configured with the features to extract
+        :param distance: Cutoff distance for distance graph
+        :type distance: float
+        :param label_dict: A dictionary using the structure name (eg: xxx.pdb) as key, and label as value
+        :type label_dict: dict
         """
         self.raw_data_dir = raw_data_dir
         self.dataset_name = dataset_name
         self.representation = representation
-        self.edge_features = edge_features
+        self.edges_method = edges_method
         self.featurizer = featurizer
         self.distance = distance
         self.labels = label_dict
@@ -116,7 +133,7 @@ class RepresentationDataset(Dataset, RepresentationBases):
                 "Distance parameter has no influence over point cloud representations",
                 UserWarning
             )
-        if self.representation.lower() in ["point_cloud", "point cloud", "voxel", "grid"] and self.edge_features is not None:
+        if self.representation.lower() in ["point_cloud", "point cloud", "voxel", "grid"] and self.edges_method is not None:
             warnings.warn(
                 "Edge features parameter has no influence over voxel/grid and point cloud representations",
                 UserWarning
@@ -134,7 +151,7 @@ class RepresentationDataset(Dataset, RepresentationBases):
     @property
     def processed_file_names(self):
         """
-        Creates the dataset name
+        Lists the name of each processed file
         """
         exclude_files = {"pre_filter.pt", "pre_transform.pt"}
         if self.raw_data_dir == None:
@@ -151,10 +168,16 @@ class RepresentationDataset(Dataset, RepresentationBases):
 
 
     def len(self):
+        """
+        Dataset length
+        """
         return len(self.processed_file_names)
 
 
     def get(self, idx):
+        """
+        Accesses each entry in the dataset by index
+        """
         data = torch.load(osp.join(self.processed_dir, f'data_{idx}.pt'), weights_only=False)
         return data
 
@@ -168,6 +191,7 @@ class RepresentationDataset(Dataset, RepresentationBases):
 
     def process(self):
         """
+        Processes each structure and saves them as a separate .pt file
         """
         failed_items = []
 
@@ -214,28 +238,40 @@ class RepresentationDataset(Dataset, RepresentationBases):
 
 class RepresentationInMemoryDataset(InMemoryDataset, RepresentationBases):
     """
-    
+    Class to create representations datasets. If data is previusly processed, this class opens
+    the dataset file. If data is not previusly processed, the class processes each representation
+    first and saves it a a single file.
     """
     def __init__(self, raw_data_dir, root, dataset_name, representation:str,
-                 edge_features:str = None,
+                 edges_method:str = None,
                  featurizer = featurizer.ResidueFeaturizer(),
                  distance:float = None, label_dict: dict = None):
         """
         Initialize the RepresentationDataset object
-
-        Args:
-            raw_data_dir
-            root
-            dataset_name
-            representation
-            residue_center
-            distance
-            label_dict
+        
+        :param raw_data_dir: Folder where all the structures are stored.
+        :param root: Folder where the processed is or will be stored.
+        :param dataset_name: 
+        :param representation: Type of representation for the structures:
+                                - graph
+                                - voxel/grid
+                                - point cloud
+        :type representation: str
+        :param edges_method: How the edges will be computed.
+                                - distance: for distance graphs
+                                - featurizer: to use featurizer bond features
+                                - mixed: to use both
+        :type edges_method: str
+        :param featurizer: The featurizer previusly configured with the features to extract
+        :param distance: Cutoff distance for distance graph
+        :type distance: float
+        :param label_dict: A dictionary using the structure name (eg: xxx.pdb) as key, and label as value
+        :type label_dict: dict
         """
         self.raw_data_dir = raw_data_dir
         self.dataset_name = dataset_name
         self.representation = representation
-        self.edge_features = edge_features
+        self.edges_method = edges_method
         self.featurizer = featurizer
         self.distance = distance
         self.labels = label_dict
@@ -249,7 +285,7 @@ class RepresentationInMemoryDataset(InMemoryDataset, RepresentationBases):
                 "Distance parameter has no influence over point cloud representations",
                 UserWarning
             )
-        if self.representation.lower() in ["point_cloud", "point cloud", "voxel", "grid"] and self.edge_features is not None:
+        if self.representation.lower() in ["point_cloud", "point cloud", "voxel", "grid"] and self.edges_method is not None:
             warnings.warn(
                 "Edge features parameter has no influence over voxel/grid and point cloud representations",
                 UserWarning
@@ -267,7 +303,7 @@ class RepresentationInMemoryDataset(InMemoryDataset, RepresentationBases):
     @property
     def processed_file_names(self):
         """
-        Creates the dataset name
+        Creates the name of the single file storing the dataset
         """
         return [f'{self.dataset_name}_{self.representation}.pt']
 
@@ -281,6 +317,7 @@ class RepresentationInMemoryDataset(InMemoryDataset, RepresentationBases):
 
     def process(self):
         """
+        Processes each structure and saves them all in just one .pt file
         """
         data_list = []
         failed_items = []
@@ -299,7 +336,6 @@ class RepresentationInMemoryDataset(InMemoryDataset, RepresentationBases):
                 if label == None:
                     print("File "+ raw_file + " skipped due to missing label.")
                     continue
-            data = self.process_representation(file_path, label=label)
             try:
                 data = self.process_representation(file_path, label=label)
                 data_list.append(data)

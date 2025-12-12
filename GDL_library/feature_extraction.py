@@ -188,10 +188,14 @@ def get_sidechain_volume_features(seq):
 # FEATURES!!
 # This function is from:
 # https://github.com/feiglab/ProteinStructureEmbedding/blob/main/src/dataset.py and edited by copilot
-def get_dh(traj):
+def get_dh(traj: md.Trajectory):
     """
     Gets dihedral features (sine, cosine, mask) for all residues.
-    Ensures consistent size across all features.
+        Ensures consistent size across all features.
+    
+    :param traj: mdtraj trajectory of a protein.
+    :type traj: md.Trajectory
+    
     """
     
     residues = [r for r in traj.topology.residues if r.is_protein]
@@ -244,7 +248,13 @@ def get_dh(traj):
     return features
 
 
-def get_secondary_structure(traj):
+def get_secondary_structure(traj: md.Trajectory):
+    """
+    Gets the type of secondary structure to which each residue belongs.
+    
+    :param traj: mdtraj trajectory of a protein.
+    :type traj: md.Trajectory
+    """
     try:
         ss_raw = md.compute_dssp(traj, simplified=False)[0]
     except Exception as e:
@@ -266,7 +276,14 @@ def get_secondary_structure(traj):
     return one_hot_encoded
 
 
-def get_accessible_surface_area(traj, sequence):
+def get_accessible_surface_area(traj: md.Trajectory, sequence):
+    """
+    Gets accessible surface area for each residue.
+    
+    :param traj: mdtraj trajectory of a protein.
+    :type traj: md.Trajectory
+    :param sequence: Sequence of the protein.
+    """
     try:
         sa = md.shrake_rupley(traj, mode="residue")[0]
     except Exception as e:
