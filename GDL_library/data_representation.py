@@ -29,13 +29,6 @@ class BaseRepresentation:
         self.structure = structure
         self.label = label
         self.featurizer = featurizer
-
-
-    def get_features_matrix(self):
-        """
-        Gets the features from the featurizer
-        """
-        return self.featurizer.feature_list
     
 
     @abstractmethod
@@ -148,7 +141,7 @@ class GraphRepresentation(BaseRepresentation):
         :return: A representation as a data object
         :rtype: torch_geometric.data.Data
         """
-        node_features = self.get_features_matrix()
+        node_features = self.features
         node_features = torch.tensor(node_features, dtype=torch.float)
 
         edges, edge_features = self.__get_edges()
@@ -230,7 +223,7 @@ class Grid3DRepresentation(BaseRepresentation):
         
         # Line to concatenate features
         #node_features = np.concatenate((coords_copy, self.residue_encoding), axis = 1)
-        node_features = self.get_features_matrix()
+        node_features = self.features
         f_size = node_features.shape[1]
         
         grid = np.zeros((x_len, y_len, z_len, f_size))
@@ -254,7 +247,7 @@ class Grid3DRepresentation(BaseRepresentation):
         """
         Generates a visualization of the representation.
         """
-        mask = np.any(self.representation != 0, axis=3)
+        mask = np.any(self.representation.x != 0, axis=3)
 
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
@@ -296,7 +289,7 @@ class PointCloudRepresentation(BaseRepresentation):
         :rtype: torch_geometric.data.Data
         """
         # Line to concatenate features
-        feature_matrix = self.get_features_matrix()
+        feature_matrix = self.features
         point_cloud =  Data(pos=feature_matrix[:, 0:3], x=feature_matrix[:, 3:], y = self.label)
 
         return point_cloud
@@ -309,7 +302,7 @@ class PointCloudRepresentation(BaseRepresentation):
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
 
-        x, y, z = self.representation.pos[0], self.representation.pos[1], self.representation.pos[2]
+        x, y, z = self.representation.pos[:,0], self.representation.pos[:,1], self.representation.pos[:,2]
         ax.scatter(x, y, z, c='cyan', marker='o', edgecolors='r', alpha=0.5)
 
         plt.show()
