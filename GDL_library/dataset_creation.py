@@ -71,12 +71,13 @@ class RepresentationBases():
         """
         Initializes a dataset using the .json metadata file created during data processing.
         """
+        directory = os.path.dirname(metadata_path)
         with open(metadata_path, 'r') as file:
             metadata_dict = json.load(file)
 
         return cls(
             raw_data_dir=None,
-            root=metadata_dict["data_root"],
+            root=directory,
             dataset_name=metadata_dict["dataset_name"],
             representation = metadata_dict["representation"],
             #residue_center = metadata_dict["residue_center"],
